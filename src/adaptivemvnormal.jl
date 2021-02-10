@@ -53,11 +53,25 @@ function adapt!(p::AdaptiveMvNormal, x::AbstractVector)
     p.EX = f * p.EX + (1 - f) * x * x'
     # compute adapted covariance matrix
     Σ = (p.σ^2 / (p.d * f)) * (p.EX - p.Ex * p.Ex') 
-    F = cholesky(Hermitian(Σ), check=false) 
+    F = cholesky(Hermitian(Σ), check=false)  
     if rank(F.L) == p.d
         p.adaptive = MvNormal(PDMat(Σ, F))
     end
 end
+
+
+# This should update the cholesky factor
+function update_cholesky!(C, t, σ, Ex, Ex′, x)
+    C.U .*= sqrt((t - 1)/σ)
+    LinearAlgebra.lowrankupdate!(C, Ex)
+    C.U .*= sqrt(σ/(t + 1)) 
+    LinearAlgebra.lowrankdowndate!(C, Ex′)
+    C.U .*= sqrt(t + 1) 
+    LinearAlgebra.lowrankupdate!(C, x)
+    C.U .*= sqrt(1/t)
+    return C
+end
+
 
 function Base.rand(rng::Random.AbstractRNG, p::AdaptiveMvNormal)
     return if p.n > 2 * p.d
